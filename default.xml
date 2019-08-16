@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- constant mechanical parameters of shape memory alloy -->
+<Annotation>
+    <MaterialProperties>
+        <Coefficients>
+            <YoungsModulusInMPa>7000</YoungsModulusInMPa>
+            <ThermoelasticTensorInMPaPerDegreeCelsius>0.1</ThermoelasticTensorInMPaPerDegreeCelsius>
+            <TransformationTensorInMPa>-70</TransformationTensorInMPa>
+        </Coefficients>
+        <TransformationTemperature>
+            <MartensiteFinishInDegreeCelsius>-34</MartensiteFinishInDegreeCelsius>
+            <MartensiteStartInDegreeCelsius>-27</MartensiteStartInDegreeCelsius>
+            <AusteniteStartInDegreeCelsius>-25</AusteniteStartInDegreeCelsius>
+            <AusteniteFinishInDegreeCelsius>-14</AusteniteFinishInDegreeCelsius>
+        </TransformationTemperature>
+        <TransitionTemperatureStressRelationship>
+            <C_A>1.5</C_A>
+            <C_M>1.5</C_M>
+        </TransitionTemperatureStressRelationship>
+    </MaterialProperties>
+</Annotation>
