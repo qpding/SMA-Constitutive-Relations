@@ -15,7 +15,7 @@ clear;
 clc;
 
 %---------------Code for debug control----------------%
-userDEBUG = true;
+% userDEBUG = true;
 timerDEBUG = true;
 %----------------End of debug control-----------------%
 
@@ -125,6 +125,7 @@ sigma_r_c          = zeros(N, curveCounts);
 epsilon_res        = [0.2, 0.6, 1.0] * 0.01;
 T                  = linspace(-90, 50, N)';
 options            = optimoptions('fsolve','Display','none');
+L                  = zeros(1, curveCounts);
 
 for i = 1:curveCounts
        % Heating
@@ -175,8 +176,8 @@ for i = 1:curveCounts
        for index = 1:N
               sigmaFuncValue(index) = ce(sigmaTemp(index), T(floor(N/2)));
        end
-       subplot(2, 2, 3);
-       plot(sigmaTemp, sigmaFuncValue);
+       % subplot(2, 2, 3);
+       % plot(sigmaTemp, sigmaFuncValue);
     end
 % End of debug
 
@@ -192,6 +193,9 @@ for i = 1:curveCounts
     % Note: calculation of \sigma_r_c should be in a decremental direction,
     %       because 'ce' has multiple roots in [0, sigma_Ms_r]
     for j = N:-1:1
+       if T(j) < M_s
+              break;
+       end
        if T(j)<=M_f_m
            sigma_r_c(j, i) = THETA*(T(j)-M_f_m) + OMEGA*(1-xi_c) + sigma_Mf_r;
        elseif T(j)>M_f_m && T(j)<=M_s_m
@@ -200,6 +204,7 @@ for i = 1:curveCounts
            sigma_r_c(j, i) = (THETA*(T(j)-A_f_m) + sigma_Af_r);
        end
     end
+    L(i) = j;
 end
 
 subplot(figureRows,figureCols, figureIndex);
@@ -209,9 +214,9 @@ box on;
 p1 = plot(T, sigma_r_h(:, 1), '-',  'Color', [0/255 115/255 174/255], 'LineWidth', 1.5);
 p2 = plot(T, sigma_r_h(:, 2), '--', 'Color', [115/255 0/255 174/255], 'LineWidth', 1.5);
 p3 = plot(T, sigma_r_h(:, 3), ':',  'Color', [174/255 115/255 0/255], 'LineWidth', 1.5);
-p4 = plot(T, sigma_r_c(:, 1), '-',  'Color', [0/255 115/255 174/255], 'LineWidth', 1.5);
-p5 = plot(T, sigma_r_c(:, 2), '--', 'Color', [115/255 0/255 174/255], 'LineWidth', 1.5);
-p6 = plot(T, sigma_r_c(:, 3), ':',  'Color', [174/255 115/255 0/255], 'LineWidth', 1.5);
+% p4 = plot(T(L(1):end), sigma_r_c(L(1):end, 1), '-',  'Color', [0/255 115/255 174/255], 'LineWidth', 1.5);
+p5 = plot(T(L(2):end), sigma_r_c(L(2):end, 2), '--', 'Color', [115/255 0/255 174/255], 'LineWidth', 1.5);
+% p6 = plot(T(L(3):end), sigma_r_c(L(3):end, 3), ':',  'Color', [174/255 115/255 0/255], 'LineWidth', 1.5);
 legend([p3 p2 p1], {['\epsilon_{res} = ' num2str(epsilon_res(:,3)*100) '%'], ...
                     ['\epsilon_{res} = ' num2str(epsilon_res(:,2)*100) '%'], ...
                     ['\epsilon_{res} = ' num2str(epsilon_res(:,1)*100) '%']}, ...
@@ -222,6 +227,7 @@ xlabel('Temperature (Deg. C)','FontName','Times New Roman','FontSize',FontSize);
 ylabel('Recovery Stress (MPa)','FontName','Times New Roman','FontSize',FontSize);
 title({'Figure 16. Recovery stress vs. temperature', 'of restrained SMA wire'}, ...
        'FontName','Times New Roman','FontSize',FontSize);
+ylim([-10 90]);
 
 % Martensite fraction
 % Figure 5. Martensite fraction vs. temperature
@@ -269,15 +275,6 @@ xiFunc_A2M = @(t, s) (s<=sigma_linFunc(t))                    .* xi_A + ...
                                                               .*  cos(a_M*(t-M_f)+b_M*s) + (1+xi_A)/2) + ...
                      (s>=sigma_endOfM(t))                     .* 1;
 
-% for i = 1:N
-%     M_s_m = (a_M*M_f - b_M*sigma(i) + b_M*THETA*T_c + pi) / (a_M + b_M*THETA);
-%     M_f_m = (a_M*M_f - b_M*sigma(i) - b_M*OMEGA*(1-xi_A) + b_M*THETA*M_s_m) ...
-%             / (a_M + b_M*THETA);
-
-%     if sigma(i)
-           
-%     end
-% end
 xi_A2M(:, 1) = xiFunc_A2M(-27, sigma);
 xi_A2M(:, 2) = xiFunc_A2M(-20, sigma);
 
@@ -294,9 +291,43 @@ legend([p1 p2], {'T = -27', 'T = -20'}, ...
 xlabel('Stress (MPa)','FontName','Times New Roman','FontSize',FontSize);
 ylabel('Martensite Fraction','FontName','Times New Roman','FontSize',FontSize);
 title('Figure 15. Martensite fraction vs. stress', 'FontName','Times New Roman','FontSize',FontSize);
+ylim([-0.2 1.2]);
+
+% Figure 18. \xi vs. \sigma^{r} and T for a restrained SMA wire with 0.2% initial strain
+% M to A transformation, i.e. heating (recovery)
+T      = linspace(-90, 50, N)';
+sigma  = linspace(0, 30, N)';
+xi_M2A = zeros(N, 1);
+sigma_linFunc = @(t) C_A * (t - A_f);
+sigma_endOfA  = @(t) C_A * (t - A_s);
+xi_M  = 1;
+xiFunc_M2A = @(t, s) (s<=sigma_linFunc(t))                    .* xi_M + ...
+                     (s>sigma_linFunc(t) & s<sigma_endOfA(t)) .* (xi_M / 2 ...
+                                                              .*  (cos(a_A*(t-A_s)+b_A*s) + 1)) + ...
+                     (s>=sigma_endOfA(t))                     .* 0;
+
+% xi_M2A(:, 1) = xiFunc_M2A(-27, sigma);
+% xi_M2A(:, 2) = xiFunc_M2A(-20, sigma);
+for i = 1:N
+    xi_M2A(i, 1) = xiFunc_M2A(T(i), sigma);
+end
+
+subplot(figureRows,figureCols, figureIndex);
+figureIndex  = figureIndex + 1;
+hold on;
+box on;
+p1 = plot3(T, sigma, xi_M2A, '-', 'Color', [0/255 115/255 174/255], 'LineWidth', 1.5);
+% legend([p1 p2], {'T = -27', 'T = -20'}, ...
+%        'Box', 'off', ...
+%        'Orientation', 'vertical', ...
+%        'Location', 'southeast');
+xlabel('Stress (MPa)','FontName','Times New Roman','FontSize',FontSize);
+ylabel('Martensite Fraction','FontName','Times New Roman','FontSize',FontSize);
+title({'Figure 18. \xi vs. \sigma^{r} and T', 'for a restrained SMA wire with 0.2% initial strain'}, ...
+       'FontName','Times New Roman','FontSize',FontSize);
 % ylim([-0.2 1.2]);
 
-set(gcf, 'Position', [9,49,1300,600]);
+set(gcf, 'Position', [9,49,1300,600]); 
 
 if exist('timerDEBUG', 'var')
     toc
