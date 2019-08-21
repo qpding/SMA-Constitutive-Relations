@@ -1,14 +1,16 @@
-% Liang and Rogers Model
+% L. C. Brinson Model
 %-----------------------------------------------------%
 % -- Introduction:
 % Numerical simulation of constitutive relations for one-dimentional SMA
-% based on Liang and Rogers model
+% based on L. C. Brinson model, with non-constant material functions
+% and redefined martensite internal variable
 %
 % -- Reference:
-% One-Dimensional Thermomechanical Constitutive Relations for Shape Memory Materials
+% One-Dimensional Constitutive Behavior of Shape Memory Alloys: 
+% Thermomechanical Derivation with Non-Constant Material Functions and Redefined Martensite Internal Variable
 %
 % -- Time:
-% Aug. 15th, 2019
+% Aug. 21th, 2019
 %-----------------------------------------------------%
 close all;
 clear;
@@ -23,48 +25,147 @@ FontSize   = 12;
 figureRows = 2;
 figureCols = 3;
 figureIndex= 1;
-[ curveCounts, N ] = deal( 3, 1000 );
 
 if exist('timerDEBUG', 'var')
     tic
 end
 
 % extract parameters
-[ coeffDic, TDic, RDic ] = loadParameters('Params_L_and_R.xml');
-D     = coeffDic.('YoungsModulus');
-THETA = coeffDic.('ThermoelasticTensor');
-OMEGA = coeffDic.('TransformationTensor');
-M_f   = TDic.('MartensiteFinish');
-M_s   = TDic.('MartensiteStart');
-A_s   = TDic.('AusteniteStart');
-A_f   = TDic.('AusteniteFinish');
-C_A   = RDic.('C_A');
-C_M   = RDic.('C_M');
-epsilon_L = -OMEGA/D;
-a_A       = pi/(A_f - A_s);
-a_M       = pi/(M_s - M_f);
-b_A       = -a_A/C_A;
-b_M       = -a_M/C_M;
+[ coeffDic, TDic, RDic ] = loadParameters('Params_Brinson.xml');
+D_a        = coeffDic.('AusteniticYoungsModulus');
+D_m        = coeffDic.('MartensiticYoungsModulus');
+THETA      = coeffDic.('ThermoelasticTensor');
+% OMEGA = coeffDic.('TransformationTensor');
+M_f        = TDic.('MartensiteFinish');
+M_s        = TDic.('MartensiteStart');
+A_s        = TDic.('AusteniteStart');
+A_f        = TDic.('AusteniteFinish');
+C_A        = RDic.('C_A');
+C_M        = RDic.('C_M');
+sigma_s_cr = RDic.('StartingCriticalStress');
+sigma_f_cr = RDic.('FinishingCriticalStress');
+epsilon_L  = coeffDic.('MaximumResidualStrain');
+a_A        = pi/(A_f - A_s);
+a_M        = pi/(M_s - M_f);
+b_A        = -a_A/C_A;
+b_M        = -a_M/C_M;
+
+% non-constant material function
+D     = @(x) D_a + x*(D_m - D_a);
+OMEGA = @(x) -epsilon_L * D(x);
 
 % STRESS AND STRAIN RELATIONS
-% Figure 14. Prediction of stress-strain relation for a copper based SMA.
-sigma   = linspace(0, 30, N)';
-epsilon = zeros(N, 2);
-T = [-20 -27];
+% Figure 5. Stress-strain curves illustrating the pseudoelastic effect
+% and the shape memory effect.
+[ curveCounts, N ] = deal( 4, 1000 );
+sigma            = linspace(0, 600, N)';
+epsilonLoading   = zeros(N, curveCounts);
+epsilonUnloading = zeros(N, curveCounts);
+T                = [12 20 40 60];
 
-sigma_linFunc = @(t) C_M * (t - M_s);
-sigma_endOfM  = @(t) C_M * (t - M_f);
-xi_A  = 0;
-for i = 1:2
+sigma_sFunc = @(t) (t >= M_s) .* (sigma_s_cr + C_M * (t - M_s)) + ...
+                   (t < M_s)  .* (sigma_s_cr);
+sigma_fFunc = @(t) (t >= M_s) .* (sigma_f_cr + C_M * (t - M_s)) + ...
+                   (t < M_s)  .* (sigma_f_cr);
+
+endIndex = zeros(curveCounts);
+
+for i = 1:curveCounts
+    % loading
+    xi_S0   = 0;
+    % sigma_0 = 0;
     for j = 1:N
-       if sigma(j) <= sigma_linFunc(T(i))
-           epsilon(j, i) = sigma(j) / D;
-       elseif sigma(j) <= sigma_endOfM(T(i))
-           xi = (1-xi_A)/2 * cos(a_M*(T(i)-M_f)+b_M*sigma(j)) + (1+xi_A)/2;
-           epsilon(j, i) = (sigma(j) - OMEGA*xi) / D;
+       if T(i) > M_s
+           xi_T0 = 0;
+           if sigma(j) <= sigma_sFunc(T(i))
+               xi_S = xi_S0;
+               xi_T = 0;
+           elseif sigma(j) <= sigma_fFunc(T(i))
+               xi_S = (1-xi_S0)/2 * cos( ...
+                        pi/(sigma_s_cr-sigma_f_cr) * (sigma(j) - sigma_f_cr - C_M*(T(i)-M_s)) ...
+                        ) + (1+xi_S0)/2;
+               xi_T = xi_T0 - xi_T0/(1-xi_S0) * (xi_S-xi_S0);
+           else
+               xi_S = 1;
+               xi_T = 0;
+           end
        else
-           epsilon(j, i) = (sigma(j) - OMEGA*1) / D;
+           xi_T0 = (1-0)/2 * (cos(a_M*(T(i)-M_f))+1);
+           if sigma(j) <= sigma_sFunc(T(i))
+               xi_S = xi_S0;
+               xi_T = 0;
+           elseif sigma(j) <= sigma_fFunc(T(i))
+               xi_S = (1-xi_S0)/2 * cos( ...
+                        pi/(sigma_s_cr-sigma_f_cr) * (sigma(j) - sigma_f_cr) ...
+                        ) + (1+xi_S0)/2;
+               if T(i) > M_f
+                   delta_Txi = (1-xi_T0)/2 * (cos(a_M*(T(i)-M_f))+1);
+               else
+                   delta_Txi = 0;
+               end
+               xi_T = xi_T0 - xi_T0/(1-xi_S0) * (xi_S-xi_S0) + delta_Txi;
+           else
+               xi_S = 1;
+               xi_T = 0;
+           end
        end
+       
+       xi = xi_S + xi_T;
+       epsilonLoading(j, i) = sigma(j) / D(xi) + epsilon_L*xi_S;
+       % if i == 2
+       %        display(D(xi));
+       % end
+       
+       if epsilonLoading(j, i) >= 6e-2
+           endIndex(i) = j;
+           break;
+       end
+    end
+
+    % unloading
+    xi_S0     = xi_S;
+    xi_0      = xi;
+    sigma_0   = sigma(j);
+    epsilon_0 = epsilonLoading(j, i);
+
+    for k = j:-1:1
+        if T(i) > M_s
+            xi_T0 = 0;
+            if sigma(k) <= sigma_sFunc(T(i))
+                xi_S = xi_S0;
+                xi_T = 0;
+            elseif sigma(k) <= sigma_fFunc(T(i))
+                xi_S = (1-xi_S0)/2 * cos( ...
+                         pi/(sigma_s_cr-sigma_f_cr) * (sigma(k) - sigma_f_cr - C_M*(T(i)-M_s)) ...
+                         ) + (1+xi_S0)/2;
+                xi_T = xi_T0 - xi_T0/(1-xi_S0) * (xi_S-xi_S0);
+            else
+                xi_S = 1;
+                xi_T = 0;
+            end
+        else
+            xi_T0 = (1-0)/2 * (cos(a_M*(T(i)-M_f))+1);
+            if sigma(k) <= sigma_sFunc(T(i))
+                xi_S = xi_S0;
+                xi_T = 0;
+            elseif sigma(k) <= sigma_fFunc(T(i))
+                xi_S = (1-xi_S0)/2 * cos( ...
+                         pi/(sigma_s_cr-sigma_f_cr) * (sigma(k) - sigma_f_cr) ...
+                         ) + (1+xi_S0)/2;
+                if T(i) > M_f
+                    delta_Txi = (1-xi_T0)/2 * (cos(a_M*(T(i)-M_f))+1);
+                else
+                    delta_Txi = 0;
+                end
+                xi_T = xi_T0 - xi_T0/(1-xi_S0) * (xi_S-xi_S0) + delta_Txi;
+            else
+                xi_S = 1;
+                xi_T = 0;
+            end
+        end
+        
+        xi = xi_S + xi_T;
+        epsilonUnloading(k, i) = (sigma(k)-sigma_0 + D(xi_0)*epsilon_0 - OMEGA(xi)*xi_S + OMEGA(xi_0)*xi_S0) / D(xi);
     end
 end
 
@@ -73,17 +174,25 @@ subplot(figureRows, figureCols, figureIndex);
 figureIndex  = figureIndex + 1;
 hold on;
 box on;
-p1 = plot(epsilon(:, 1), sigma, '-',  'Color', [0/255 115/255 174/255], 'LineWidth', 1.5);
-p2 = plot(epsilon(:, 2), sigma, '--', 'Color', [115/255 0/255 174/255], 'LineWidth', 1.5);
-legend([p1 p2], {['T = ' num2str(T(1))], ...
-                 ['T = ' num2str(T(2))]}, ...
+p1 = plot(epsilonLoading(1:endIndex(1), 1), sigma(1:endIndex(1)), '-',  'Color', [0/255 115/255 174/255], 'LineWidth', 1.0);
+%    plot(epsilonUnloading(1:endIndex(1), 1), sigma(1:endIndex(1)), '-',  'Color', [0/255 115/255 174/255], 'LineWidth', 1.0);
+p2 = plot(epsilonLoading(1:endIndex(2), 2), sigma(1:endIndex(2)), '--', 'Color', [115/255 0/255 174/255], 'LineWidth', 1.0);
+   plot(epsilonUnloading(1:endIndex(2), 2), sigma(1:endIndex(2)), '--', 'Color', [115/255 0/255 174/255], 'LineWidth', 1.0);
+p3 = plot(epsilonLoading(1:endIndex(3), 3), sigma(1:endIndex(3)), ':',  'Color', [115/255 174/255 0/255], 'LineWidth', 1.0);
+%    plot(epsilonUnloading(1:endIndex(3), 3), sigma(1:endIndex(3)), ':',  'Color', [115/255 174/255 0/255], 'LineWidth', 1.0);
+p4 = plot(epsilonLoading(1:endIndex(4), 4), sigma(1:endIndex(4)), '-.', 'Color', [100/255 20/255 74/255], 'LineWidth', 1.0);
+%    plot(epsilonUnloading(1:endIndex(4), 4), sigma(1:endIndex(4)), '-.', 'Color', [100/255 20/255 74/255], 'LineWidth', 1.0);
+legend([p1 p2 p3 p4], {['T = ' num2str(T(1))], ...
+                       ['T = ' num2str(T(2))], ...
+                       ['T = ' num2str(T(3))], ...
+                       ['T = ' num2str(T(4))]}, ...
        'Box', 'off', ...
        'Orientation', 'vertical', ...
-       'Location', 'northwest');
+       'Location', 'southeast');
 xlabel('Strain','FontName','Times New Roman','FontSize',FontSize);
 ylabel('Stress (MPa)','FontName','Times New Roman','FontSize',FontSize);
-title({'Figure 14. Prediction of stress-strain', 'relation for a copper based SMA.'}, ...
-      'FontName', 'Times New Roman','FontSize',FontSize);
+title({'Figure 5. Stress-strain curves', 'illustrating the pseudoelastic effect and the shape memory effect.'}, ...
+       'FontName', 'Times New Roman','FontSize',FontSize);
 
 % FREE RECOVERY
 % Figure 19. Recovery strain vs. temperature of free recovery
@@ -340,5 +449,4 @@ end
 % ylim([-2.5 0.5]);
 % set(gca,'XTick',[]);
 % set(gca,'YTick',[]);
-
 

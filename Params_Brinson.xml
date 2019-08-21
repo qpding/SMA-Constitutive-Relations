@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- constant mechanical parameters of shape memory alloy -->
+<Annotation>
+    <MaterialProperties>
+        <Coefficients>
+            <AusteniticYoungsModulusInMPa>67e3</AusteniticYoungsModulusInMPa>
+            <MartensiticYoungsModulusInMPa>26.3e3</MartensiticYoungsModulusInMPa>
+            <ThermoelasticTensorInMPaPerDegreeCelsius>0.55</ThermoelasticTensorInMPaPerDegreeCelsius>
+            <TransformationTensorInMPa>-70</TransformationTensorInMPa>
+        </Coefficients>
+        <TransformationTemperatures>
+            <MartensiteFinishInDegreeCelsius>9</MartensiteFinishInDegreeCelsius>
+            <MartensiteStartInDegreeCelsius>18.4</MartensiteStartInDegreeCelsius>
+            <AusteniteStartInDegreeCelsius>34.5</AusteniteStartInDegreeCelsius>
+            <AusteniteFinishInDegreeCelsius>49</AusteniteFinishInDegreeCelsius>
+        </TransformationTemperatures>
+        <TransitionConstants>
+            <C_A>13.8</C_A>
+            <C_M>8</C_M>
+            <StartingCriticalStressInMPa>100</StartingCriticalStressInMPa>
+            <FinishingCriticalStressInMPa>170</FinishingCriticalStressInMPa>
+        </TransitionConstants>
+        <MaximumResidualStrain>0.067</MaximumResidualStrain>
+    </MaterialProperties>
+</Annotation>
